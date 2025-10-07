@@ -1,0 +1,12 @@
+material,unit,price_per_unit,currency
+concrete,m3,4500,PHP
+steel,kg,75,PHP
+blocks,piece,15,PHP
+blocks_per_m2,m2,12.5,PHP
+roofing,m2,350,PHP
+window,m2,2500,PHP
+door,piece,8000,PHP
+beam,m,1200,PHP
+staircase,flight,35000,PHP
+labor,m2,1200,PHP
+foundation,m,800,PHP
