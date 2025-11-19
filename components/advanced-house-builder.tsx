@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { AlertTriangle, Home, Calculator, Eye, Sun, Moon, Plus, Trash2, Move, Stars as Stairs } from "lucide-react"
+import { AlertTriangle, Home, Calculator, Eye, Sun, Moon, Plus, Trash2, Move, Stars as Stairs } from 'lucide-react'
 import FloorPlanDesigner from "./floor-plan-designer"
 import PlotValidator from "./plot-validator"
 import ProjectManager from "./project-manager"
@@ -286,7 +286,7 @@ function WallMesh({
       : wall.color
 
   if (wall.wallType === "railing") {
-    const railingHeight = wall.height
+    const railingHeight = wall.height / 4
     const postCount = Math.floor(length / 0.5) + 1 // Adjust spacing as needed
 
     return (
@@ -360,22 +360,24 @@ function WallMesh({
             const windowZ = wall.start.z + (wall.end.z - wall.start.z) * window.position
             const windowY = window.sillHeight + window.height / 2
 
+            // Calculate perpendicular direction OUTWARD from the wall
             const wallDx = wall.end.x - wall.start.x
             const wallDz = wall.end.z - wall.start.z
             const wallLength = Math.sqrt(wallDx * wallDx + wallDz * wallDz)
-            const perpX = -wallDz / wallLength
-            const perpZ = wallDx / wallLength
+            const perpX = wallDz / wallLength
+            const perpZ = -wallDx / wallLength
             const protrusionDepth = 0.15 // Protrude 15cm outward
+            const internalProtrusion = 0.08 // Protrude 8cm inward
 
             return (
               <group key={window.id}>
-                {/* Window opening (actual cutout effect using CSG-like approach) */}
+                {/* Window opening (actual cutout effect) */}
                 <mesh position={[windowX, windowY, windowZ]} rotation={[0, -angle, 0]}>
                   <boxGeometry args={[window.width + 0.02, window.height + 0.02, wall.thickness + 0.02]} />
                   <meshStandardMaterial color="#000000" transparent opacity={0} />
                 </mesh>
 
-                {/* Window glass */}
+                {/* Window glass - outward side */}
                 <mesh
                   position={[windowX + perpX * protrusionDepth, windowY, windowZ + perpZ * protrusionDepth]}
                   rotation={[0, -angle, 0]}
@@ -385,7 +387,17 @@ function WallMesh({
                   <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
                 </mesh>
 
-                {/* Window frame */}
+                {/* Window glass - inward side */}
+                <mesh
+                  position={[windowX - perpX * internalProtrusion, windowY, windowZ - perpZ * internalProtrusion]}
+                  rotation={[0, -angle, 0]}
+                  castShadow
+                >
+                  <boxGeometry args={[window.width - 0.05, window.height - 0.05, 0.02]} />
+                  <meshStandardMaterial color="#87CEEB" transparent opacity={0.6} />
+                </mesh>
+
+                {/* Window frame - outward */}
                 <mesh
                   position={[windowX + perpX * protrusionDepth, windowY, windowZ + perpZ * protrusionDepth]}
                   rotation={[0, -angle, 0]}
@@ -394,7 +406,16 @@ function WallMesh({
                   <meshStandardMaterial color={window.color} />
                 </mesh>
 
-                {/* Window sill */}
+                {/* Window frame - inward */}
+                <mesh
+                  position={[windowX - perpX * internalProtrusion, windowY, windowZ - perpZ * internalProtrusion]}
+                  rotation={[0, -angle, 0]}
+                >
+                  <boxGeometry args={[window.width, window.height, 0.08]} />
+                  <meshStandardMaterial color={window.color} />
+                </mesh>
+
+                {/* Window sill - outward */}
                 <mesh
                   position={[
                     windowX + perpX * protrusionDepth,
@@ -407,36 +428,18 @@ function WallMesh({
                   <meshStandardMaterial color={window.color} />
                 </mesh>
 
-                {/* Window style-specific elements */}
-                {window.style === "arched" && (
-                  <mesh
-                    position={[
-                      windowX + perpX * protrusionDepth,
-                      windowY + window.height / 2,
-                      windowZ + perpZ * protrusionDepth,
-                    ]}
-                    rotation={[0, -angle, 0]}
-                  >
-                    <cylinderGeometry args={[window.width / 2, window.width / 2, 0.05, 16, 1, false, 0, Math.PI]} />
-                    <meshStandardMaterial color={window.color} />
-                  </mesh>
-                )}
-
-                {window.style === "bay" && (
-                  <group>
-                    <mesh
-                      position={[
-                        windowX + perpX * (protrusionDepth + 0.3),
-                        windowY,
-                        windowZ + perpZ * (protrusionDepth + 0.3),
-                      ]}
-                      rotation={[0, -angle, 0]}
-                    >
-                      <boxGeometry args={[window.width * 0.8, window.height, 0.6]} />
-                      <meshStandardMaterial color="#87CEEB" transparent opacity={0.4} />
-                    </mesh>
-                  </group>
-                )}
+                {/* Window sill - inward */}
+                <mesh
+                  position={[
+                    windowX - perpX * internalProtrusion,
+                    window.sillHeight - 0.05,
+                    windowZ - perpZ * internalProtrusion,
+                  ]}
+                  rotation={[0, -angle, 0]}
+                >
+                  <boxGeometry args={[window.width + 0.1, 0.1, 0.15]} />
+                  <meshStandardMaterial color={window.color} />
+                </mesh>
               </group>
             )
           })}
@@ -497,55 +500,6 @@ function WallMesh({
                   <meshStandardMaterial color="#222" />
                 </mesh>
 
-                {/* Side frames - left/right, both inside and outside, rotated correctly */}
-                {/* Left side frame - outside */}
-                <mesh
-                  position={[
-                    doorX - (door.width / 2) - 0.05 + perpX * frameOffset,
-                    doorY,
-                    doorZ + perpZ * frameOffset
-                  ]}
-                  rotation={[0, -angle, 0]}
-                >
-                  <boxGeometry args={[0.1, door.height, 0.08]} />
-                  <meshStandardMaterial color="#222" />
-                </mesh>
-                {/* Right side frame - outside */}
-                <mesh
-                  position={[
-                    doorX + (door.width / 2) + 0.05 + perpX * frameOffset,
-                    doorY,
-                    doorZ + perpZ * frameOffset
-                  ]}
-                  rotation={[0, -angle, 0]}
-                >
-                  <boxGeometry args={[0.1, door.height, 0.08]} />
-                  <meshStandardMaterial color="#222" />
-                </mesh>
-                {/* Left side frame - inside */}
-                <mesh
-                  position={[
-                    doorX - (door.width / 2) - 0.05 - perpX * frameOffset,
-                    doorY,
-                    doorZ - perpZ * frameOffset
-                  ]}
-                  rotation={[0, -angle, 0]}
-                >
-                  <boxGeometry args={[0.1, door.height, 0.08]} />
-                  <meshStandardMaterial color="#654321" />
-                </mesh>
-                {/* Right side frame - inside */}
-                <mesh
-                  position={[
-                    doorX + (door.width / 2) + 0.05 - perpX * frameOffset,
-                    doorY,
-                    doorZ - perpZ * frameOffset
-                  ]}
-                  rotation={[0, -angle, 0]}
-                >
-                  <boxGeometry args={[0.1, door.height, 0.08]} />
-                  <meshStandardMaterial color="#654321" />
-                </mesh>
 
                 {/* Door handles - attached to door panel, both sides */}
                 {/* Outside handle */}
@@ -780,121 +734,204 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
   }
 
   if (floorPlan.roofStyle === "gable") {
-    // Calculate bounding box for gable roof
+    // Ridge runs parallel to longer walls with A-shaped gable ends
     const xs = roofGeometry.points.map((p) => p.x)
     const zs = roofGeometry.points.map((p) => p.z)
-    const minX = Math.min(...xs) - overhang
-    const maxX = Math.max(...xs) + overhang
-    const minZ = Math.min(...zs) - overhang
-    const maxZ = Math.max(...zs) + overhang
-    const centerX = (minX + maxX) / 2
-    const centerZ = (minZ + maxZ) / 2
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs)
+    const minZ = Math.min(...zs)
+    const maxZ = Math.max(...zs)
+    
+    const buildingLengthX = maxX - minX
+    const buildingLengthZ = maxZ - minZ
+    
+    // Determine ridge direction based on building proportions
+    const ridgeAlongX = buildingLengthX > buildingLengthZ
     const ridgeHeight = 2.5
+    const overhangSize = 0.3
 
-    return (
-      <group>
-        {/* Front gable face */}
-        <mesh position={[centerX, roofBaseHeight + ridgeHeight / 2, minZ]} castShadow>
-          <boxGeometry args={[maxX - minX, 0.1, ridgeHeight]} />
-          <meshStandardMaterial color={floorPlan.roofColor} />
-        </mesh>
+    if (ridgeAlongX) {
+      // Ridge runs parallel to X-axis (east-west)
+      // North and South gables are triangular
+      const ridgeCenterZ = (minZ + maxZ) / 2
+      const ridgeCenterX = (minX + maxX) / 2
 
-        {/* Back gable face */}
-        <mesh position={[centerX, roofBaseHeight + ridgeHeight / 2, maxZ]} castShadow>
-          <boxGeometry args={[maxX - minX, 0.1, ridgeHeight]} />
-          <meshStandardMaterial color={floorPlan.roofColor} />
-        </mesh>
+      // Create gable roof with proper geometry
+      const roofShape = new THREE.Shape()
+      roofShape.moveTo(-buildingLengthX / 2 - overhangSize, 0)
+      roofShape.lineTo(buildingLengthX / 2 + overhangSize, 0)
+      roofShape.lineTo(buildingLengthX / 2 + overhangSize, buildingLengthZ / 2 + overhangSize)
+      roofShape.lineTo(-buildingLengthX / 2 - overhangSize, buildingLengthZ / 2 + overhangSize)
+      roofShape.closePath()
 
-        {/* Left slope */}
-        <mesh
-          position={[centerX, roofBaseHeight + ridgeHeight / 2, centerZ - (maxZ - minZ) / 4]}
-          rotation={[Math.PI / 6, 0, 0]}
-          castShadow
-        >
-          <boxGeometry args={[maxX - minX, (maxZ - minZ) / 2, 0.1]} />
-          <meshStandardMaterial color={floorPlan.roofColor} />
-        </mesh>
+      return (
+        <group position={[ridgeCenterX, roofBaseHeight, ridgeCenterZ]}>
+          {/* North roof slope */}
+          <mesh rotation={[Math.PI / 6, 0, 0]} castShadow>
+            <planeGeometry args={[buildingLengthX + overhangSize * 2, buildingLengthZ / 2 + overhangSize]} />
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
 
-        {/* Right slope */}
-        <mesh
-          position={[centerX, roofBaseHeight + ridgeHeight / 2, centerZ + (maxZ - minZ) / 4]}
-          rotation={[-Math.PI / 6, 0, 0]}
-          castShadow
-        >
-          <boxGeometry args={[maxX - minX, (maxZ - minZ) / 2, 0.1]} />
-          <meshStandardMaterial color={floorPlan.roofColor} />
-        </mesh>
-      </group>
-    )
+          {/* South roof slope */}
+          <mesh position={[0, ridgeHeight, buildingLengthZ / 2]} rotation={[-Math.PI / 6, 0, 0]} castShadow>
+            <planeGeometry args={[buildingLengthX + overhangSize * 2, buildingLengthZ / 2 + overhangSize]} />
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+
+          {/* West gable (triangular face) */}
+          <mesh position={[-buildingLengthX / 2, ridgeHeight / 2, 0]} castShadow>
+            <geometry attach="geometry">
+              {(() => {
+                const geom = new THREE.BufferGeometry()
+                const vertices = [
+                  -overhangSize, -buildingLengthZ / 2 - overhangSize, 0,
+                  -overhangSize, buildingLengthZ / 2 + overhangSize, 0,
+                  0, 0, ridgeHeight,
+                ]
+                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
+                geom.computeVertexNormals()
+                return geom
+              })()}
+            </geometry>
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+
+          {/* East gable (triangular face) */}
+          <mesh position={[buildingLengthX / 2, ridgeHeight / 2, 0]} castShadow>
+            <geometry attach="geometry">
+              {(() => {
+                const geom = new THREE.BufferGeometry()
+                const vertices = [
+                  overhangSize, -buildingLengthZ / 2 - overhangSize, 0,
+                  0, 0, ridgeHeight,
+                  overhangSize, buildingLengthZ / 2 + overhangSize, 0,
+                ]
+                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
+                geom.computeVertexNormals()
+                return geom
+              })()}
+            </geometry>
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      )
+    } else {
+      // Ridge runs parallel to Z-axis (north-south)
+      // East and West gables are triangular
+      return (
+        <group position={[(minX + maxX) / 2, roofBaseHeight, (minZ + maxZ) / 2]}>
+          {/* East roof slope */}
+          <mesh rotation={[0, 0, Math.PI / 6]} castShadow>
+            <planeGeometry args={[buildingLengthZ + overhangSize * 2, buildingLengthX / 2 + overhangSize]} />
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+
+          {/* West roof slope */}
+          <mesh position={[buildingLengthX / 2, ridgeHeight, 0]} rotation={[0, 0, -Math.PI / 6]} castShadow>
+            <planeGeometry args={[buildingLengthZ + overhangSize * 2, buildingLengthX / 2 + overhangSize]} />
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+
+          {/* North gable (triangular face) */}
+          <mesh position={[0, ridgeHeight / 2, -buildingLengthZ / 2]} castShadow>
+            <geometry attach="geometry">
+              {(() => {
+                const geom = new THREE.BufferGeometry()
+                const vertices = [
+                  -buildingLengthX / 2 - overhangSize, 0, -overhangSize,
+                  buildingLengthX / 2 + overhangSize, 0, -overhangSize,
+                  0, ridgeHeight, 0,
+                ]
+                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
+                geom.computeVertexNormals()
+                return geom
+              })()}
+            </geometry>
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+
+          {/* South gable (triangular face) */}
+          <mesh position={[0, ridgeHeight / 2, buildingLengthZ / 2]} castShadow>
+            <geometry attach="geometry">
+              {(() => {
+                const geom = new THREE.BufferGeometry()
+                const vertices = [
+                  -buildingLengthX / 2 - overhangSize, 0, overhangSize,
+                  0, ridgeHeight, 0,
+                  buildingLengthX / 2 + overhangSize, 0, overhangSize,
+                ]
+                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
+                geom.computeVertexNormals()
+                return geom
+              })()}
+            </geometry>
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      )
+    }
   }
 
   if (floorPlan.roofStyle === "shed") {
-    // Calculate bounding box for shed roof
     const xs = roofGeometry.points.map((p) => p.x)
     const zs = roofGeometry.points.map((p) => p.z)
-    const minX = Math.min(...xs) - overhang
-    const maxX = Math.max(...xs) + overhang
-    const minZ = Math.min(...zs) - overhang
-    const maxZ = Math.max(...zs) + overhang
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs)
+    const minZ = Math.min(...zs)
+    const maxZ = Math.max(...zs)
+    
+    const buildingLengthX = maxX - minX
+    const buildingLengthZ = maxZ - minZ
     const centerX = (minX + maxX) / 2
     const centerZ = (minZ + maxZ) / 2
-    const slopeHeight = 2.0
+    const slopeHeight = 1.8
+    const overhangSize = 0.3
 
-    // Determine slope direction
-    let rotation: [number, number, number] = [0, 0, 0]
-    let position: [number, number, number] = [centerX, roofBaseHeight, centerZ]
+    let slopeGeometry = null
+    let gableGeometries = []
 
     switch (floorPlan.roofSlopeDirection) {
       case "north":
-        rotation = [Math.PI / 8, 0, 0]
-        position = [centerX, roofBaseHeight + slopeHeight / 2, centerZ]
+        // Slope rises toward north
+        slopeGeometry = (
+          <mesh position={[centerX, roofBaseHeight + slopeHeight / 2, centerZ]} rotation={[Math.PI / 8, 0, 0]} castShadow>
+            <planeGeometry args={[buildingLengthX + overhangSize * 2, buildingLengthZ + overhangSize * 2]} />
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+        )
         break
       case "south":
-        rotation = [-Math.PI / 8, 0, 0]
-        position = [centerX, roofBaseHeight + slopeHeight / 2, centerZ]
+        // Slope rises toward south
+        slopeGeometry = (
+          <mesh position={[centerX, roofBaseHeight + slopeHeight / 2, centerZ]} rotation={[-Math.PI / 8, 0, 0]} castShadow>
+            <planeGeometry args={[buildingLengthX + overhangSize * 2, buildingLengthZ + overhangSize * 2]} />
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+        )
         break
       case "east":
-        rotation = [0, 0, Math.PI / 8]
-        position = [centerX, roofBaseHeight + slopeHeight / 2, centerZ]
+        // Slope rises toward east
+        slopeGeometry = (
+          <mesh position={[centerX, roofBaseHeight + slopeHeight / 2, centerZ]} rotation={[0, 0, -Math.PI / 8]} castShadow>
+            <planeGeometry args={[buildingLengthX + overhangSize * 2, buildingLengthZ + overhangSize * 2]} />
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+        )
         break
       case "west":
-        rotation = [0, 0, -Math.PI / 8]
-        position = [centerX, roofBaseHeight + slopeHeight / 2, centerZ]
+        // Slope rises toward west
+        slopeGeometry = (
+          <mesh position={[centerX, roofBaseHeight + slopeHeight / 2, centerZ]} rotation={[0, 0, Math.PI / 8]} castShadow>
+            <planeGeometry args={[buildingLengthX + overhangSize * 2, buildingLengthZ + overhangSize * 2]} />
+            <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
+          </mesh>
+        )
         break
     }
 
     return (
       <group>
-        <mesh position={position} rotation={rotation} castShadow>
-          <boxGeometry args={[maxX - minX, maxZ - minZ, 0.1]} />
-          <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
-        </mesh>
-
-        {/* Raised wall on high side */}
-        {floorPlan.roofSlopeDirection === "north" && (
-          <mesh position={[centerX, roofBaseHeight + slopeHeight / 2, minZ]} castShadow>
-            <boxGeometry args={[maxX - minX, slopeHeight, 0.2]} />
-            <meshStandardMaterial color="#e5e7eb" />
-          </mesh>
-        )}
-        {floorPlan.roofSlopeDirection === "south" && (
-          <mesh position={[centerX, roofBaseHeight + slopeHeight / 2, maxZ]} castShadow>
-            <boxGeometry args={[maxX - minX, slopeHeight, 0.2]} />
-            <meshStandardMaterial color="#e5e7eb" />
-          </mesh>
-        )}
-        {floorPlan.roofSlopeDirection === "east" && (
-          <mesh position={[maxX, roofBaseHeight + slopeHeight / 2, centerZ]} castShadow>
-            <boxGeometry args={[0.2, slopeHeight, maxZ - minZ]} />
-            <meshStandardMaterial color="#e5e7eb" />
-          </mesh>
-        )}
-        {floorPlan.roofSlopeDirection === "west" && (
-          <mesh position={[minX, roofBaseHeight + slopeHeight / 2, centerZ]} castShadow>
-            <boxGeometry args={[0.2, slopeHeight, maxZ - minZ]} />
-            <meshStandardMaterial color="#e5e7eb" />
-          </mesh>
-        )}
+        {slopeGeometry}
       </group>
     )
   }
@@ -1376,7 +1413,6 @@ export default function AdvancedHouseBuilder() {
     return { concrete, steel, blocks, roofing, windows, doors, beams: { count: 0, cost: 0 }, staircases, labor, total }
   }, [floorPlan, wallHeight, wallThickness, totalBuiltArea, materialRates])
 
-  // Event handlers
   const handlePlotResize = (dimension: "width" | "depth", value: number) => {
     const newBounds = { ...floorPlan.plotBounds, [dimension]: value }
     if (newBounds.width * newBounds.depth <= maxPlotArea) {
@@ -1757,7 +1793,16 @@ export default function AdvancedHouseBuilder() {
           {lightingMode === "night" && <pointLight position={[0, 10, 0]} intensity={0.5} color="#ffd700" />}
 
           <OrbitControls makeDefault />
-          <Grid args={[50, 50]} />
+          {/* <Grid args={[50, 50]} /> */}
+
+          {/* Ground plane with grass texture */}
+          <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[floorPlan.plotBounds.width + 2, floorPlan.plotBounds.depth + 2]} />
+            <meshStandardMaterial color="#22c55e" />
+          </mesh>
+
+          {/* Grid overlay on ground */}
+          <gridHelper args={[Math.max(floorPlan.plotBounds.width, floorPlan.plotBounds.depth) + 2, 40]} position={[0, 0, 0]} />
 
           {showEnvironment && <Environment preset="sunset" />}
 
@@ -2219,8 +2264,8 @@ export default function AdvancedHouseBuilder() {
                 </Card>
               )}
 
-              <Card>
-                <CardHeader>
+              <Card className="border-accent shadow-sm">
+                <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold text-accent">Roof Settings</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
