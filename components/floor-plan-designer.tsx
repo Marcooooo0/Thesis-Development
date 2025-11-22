@@ -236,7 +236,7 @@ export default function FloorPlanDesigner({
         }
         const canvasPos = worldToCanvas(doorPos)
 
-        ctx.fillStyle = "#8B4513"
+        ctx.fillStyle = "#000000"
         ctx.fillRect(canvasPos.x - 4, canvasPos.z - 4, 8, 8)
       })
     })

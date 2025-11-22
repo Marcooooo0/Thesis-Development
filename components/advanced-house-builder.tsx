@@ -141,6 +141,7 @@ const DEFAULT_MATERIAL_RATES: MaterialPrices = {
   foundation_per_m: 800,
 }
 
+
 // Utility functions
 function calculateDistance(p1: Point2D, p2: Point2D): number {
   return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.z - p1.z, 2))
@@ -652,7 +653,7 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
       usedSegments.add(0)
 
       let currentPoint = wallSegments[0].end
-
+      // Loop to find connected segments
       while (usedSegments.size < wallSegments.length) {
         let foundConnection = false
 
@@ -661,7 +662,7 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
 
           const segment = wallSegments[i]
           const tolerance = 0.1
-
+          // Check if segment connects to currentPoint
           if (
             Math.abs(segment.start.x - currentPoint.x) < tolerance &&
             Math.abs(segment.start.z - currentPoint.z) < tolerance
@@ -686,7 +687,7 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
         if (!foundConnection) break
       }
     }
-
+    // If unable to form a closed perimeter, create a simple rectangle around the points
     if (orderedPoints.length < 3) {
       const xs = wallPoints.map((p) => p.x)
       const zs = wallPoints.map((p) => p.z)
@@ -705,7 +706,7 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
         { x: minX - overhang, z: maxZ + overhang },
       )
     }
-
+    // Calculate total building height
     const totalHeight = floorPlan.floors.reduce((sum, floor) => sum + floor.height, 0)
 
     return {
@@ -718,15 +719,22 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
   }, [floorPlan.floors])
 
   if (!roofGeometry) return null
-
+  // Base height for roof placement
   const roofBaseHeight = totalBuildingHeight + 0.05
-  const overhang = 0.3
+  // const overhang = 0.3
 
+  // Render roof based on selected style
   if (floorPlan.roofStyle === "flat") {
     return (
       <group>
         <mesh position={[0, roofBaseHeight, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <shapeGeometry args={[new THREE.Shape(roofGeometry.points.map((p) => new THREE.Vector2(p.x, p.z)))]} />
+          {/* <shapeGeometry args={[new THREE.Shape(roofGeometry.points.map((p) => new THREE.Vector2(p.x, p.z)))]} /> */} 
+          <extrudeGeometry
+            args={[
+              new THREE.Shape(roofGeometry.points.map((p) => new THREE.Vector2(p.x, p.z))),
+              { depth: 0.1, bevelEnabled: false }
+            ]}
+          />
           <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
         </mesh>
       </group>
@@ -756,13 +764,31 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
       const ridgeCenterZ = (minZ + maxZ) / 2
       const ridgeCenterX = (minX + maxX) / 2
 
-      // Create gable roof with proper geometry
       const roofShape = new THREE.Shape()
       roofShape.moveTo(-buildingLengthX / 2 - overhangSize, 0)
       roofShape.lineTo(buildingLengthX / 2 + overhangSize, 0)
       roofShape.lineTo(buildingLengthX / 2 + overhangSize, buildingLengthZ / 2 + overhangSize)
       roofShape.lineTo(-buildingLengthX / 2 - overhangSize, buildingLengthZ / 2 + overhangSize)
       roofShape.closePath()
+
+      // Create triangular gable geometries (BufferGeometry) instead of invalid <geometry> JSX
+      const westVertices = new Float32Array([
+        -overhangSize, -buildingLengthZ / 2 - overhangSize, 0,
+        -overhangSize, buildingLengthZ / 2 + overhangSize, 0,
+        0, 0, ridgeHeight,
+      ])
+      const westGeom = new THREE.BufferGeometry()
+      westGeom.setAttribute("position", new THREE.BufferAttribute(westVertices, 3))
+      westGeom.computeVertexNormals()
+
+      const eastVertices = new Float32Array([
+        overhangSize, -buildingLengthZ / 2 - overhangSize, 0,
+        0, 0, ridgeHeight,
+        overhangSize, buildingLengthZ / 2 + overhangSize, 0,
+      ])
+      const eastGeom = new THREE.BufferGeometry()
+      eastGeom.setAttribute("position", new THREE.BufferAttribute(eastVertices, 3))
+      eastGeom.computeVertexNormals()
 
       return (
         <group position={[ridgeCenterX, roofBaseHeight, ridgeCenterZ]}>
@@ -779,38 +805,12 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
           </mesh>
 
           {/* West gable (triangular face) */}
-          <mesh position={[-buildingLengthX / 2, ridgeHeight / 2, 0]} castShadow>
-            <geometry attach="geometry">
-              {(() => {
-                const geom = new THREE.BufferGeometry()
-                const vertices = [
-                  -overhangSize, -buildingLengthZ / 2 - overhangSize, 0,
-                  -overhangSize, buildingLengthZ / 2 + overhangSize, 0,
-                  0, 0, ridgeHeight,
-                ]
-                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
-                geom.computeVertexNormals()
-                return geom
-              })()}
-            </geometry>
+          <mesh position={[-buildingLengthX / 2, ridgeHeight / 2, 0]} geometry={westGeom} castShadow>
             <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
           </mesh>
 
           {/* East gable (triangular face) */}
-          <mesh position={[buildingLengthX / 2, ridgeHeight / 2, 0]} castShadow>
-            <geometry attach="geometry">
-              {(() => {
-                const geom = new THREE.BufferGeometry()
-                const vertices = [
-                  overhangSize, -buildingLengthZ / 2 - overhangSize, 0,
-                  0, 0, ridgeHeight,
-                  overhangSize, buildingLengthZ / 2 + overhangSize, 0,
-                ]
-                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
-                geom.computeVertexNormals()
-                return geom
-              })()}
-            </geometry>
+          <mesh position={[buildingLengthX / 2, ridgeHeight / 2, 0]} geometry={eastGeom} castShadow>
             <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
           </mesh>
         </group>
@@ -818,6 +818,27 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
     } else {
       // Ridge runs parallel to Z-axis (north-south)
       // East and West gables are triangular
+
+      // North triangular face geometry
+      const northVertices = new Float32Array([
+        -buildingLengthX / 2 - overhangSize, 0, -overhangSize,
+        buildingLengthX / 2 + overhangSize, 0, -overhangSize,
+        0, ridgeHeight, 0,
+      ])
+      const northGeom = new THREE.BufferGeometry()
+      northGeom.setAttribute("position", new THREE.BufferAttribute(northVertices, 3))
+      northGeom.computeVertexNormals()
+
+      // South triangular face geometry
+      const southVertices = new Float32Array([
+        -buildingLengthX / 2 - overhangSize, 0, overhangSize,
+        0, ridgeHeight, 0,
+        buildingLengthX / 2 + overhangSize, 0, overhangSize,
+      ])
+      const southGeom = new THREE.BufferGeometry()
+      southGeom.setAttribute("position", new THREE.BufferAttribute(southVertices, 3))
+      southGeom.computeVertexNormals()
+
       return (
         <group position={[(minX + maxX) / 2, roofBaseHeight, (minZ + maxZ) / 2]}>
           {/* East roof slope */}
@@ -833,38 +854,12 @@ function RoofMesh({ floorPlan }: { floorPlan: FloorPlan }) {
           </mesh>
 
           {/* North gable (triangular face) */}
-          <mesh position={[0, ridgeHeight / 2, -buildingLengthZ / 2]} castShadow>
-            <geometry attach="geometry">
-              {(() => {
-                const geom = new THREE.BufferGeometry()
-                const vertices = [
-                  -buildingLengthX / 2 - overhangSize, 0, -overhangSize,
-                  buildingLengthX / 2 + overhangSize, 0, -overhangSize,
-                  0, ridgeHeight, 0,
-                ]
-                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
-                geom.computeVertexNormals()
-                return geom
-              })()}
-            </geometry>
+          <mesh position={[0, ridgeHeight / 2, -buildingLengthZ / 2]} geometry={northGeom} castShadow>
             <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
           </mesh>
 
           {/* South gable (triangular face) */}
-          <mesh position={[0, ridgeHeight / 2, buildingLengthZ / 2]} castShadow>
-            <geometry attach="geometry">
-              {(() => {
-                const geom = new THREE.BufferGeometry()
-                const vertices = [
-                  -buildingLengthX / 2 - overhangSize, 0, overhangSize,
-                  0, ridgeHeight, 0,
-                  buildingLengthX / 2 + overhangSize, 0, overhangSize,
-                ]
-                geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
-                geom.computeVertexNormals()
-                return geom
-              })()}
-            </geometry>
+          <mesh position={[0, ridgeHeight / 2, buildingLengthZ / 2]} geometry={southGeom} castShadow>
             <meshStandardMaterial color={floorPlan.roofColor} side={THREE.DoubleSide} />
           </mesh>
         </group>
@@ -1007,11 +1002,11 @@ function StaircaseMesh({
           {/* Handrails */}
           <mesh position={[staircase.width / 2 + 0.05, floorHeight / 2, (steps * stepDepth) / 2]} castShadow>
             <boxGeometry args={[0.05, floorHeight, steps * stepDepth]} />
-            <meshStandardMaterial color="#654321" />
+            <meshStandardMaterial color="#000000" />
           </mesh>
           <mesh position={[-staircase.width / 2 - 0.05, floorHeight / 2, (steps * stepDepth) / 2]} castShadow>
             <boxGeometry args={[0.05, floorHeight, steps * stepDepth]} />
-            <meshStandardMaterial color="#654321" />
+            <meshStandardMaterial color="#000000" />
           </mesh>
         </>
       )}
@@ -1163,11 +1158,12 @@ export default function AdvancedHouseBuilder() {
         color: "#d1d5db", // Default color for new floor
         texture: "concrete", // Default texture for new floor
       },
-    ], // Removed beams array, Added floor color and texture
+    ],
     staircases: [], // Initialize staircases array
     roofStyle: "flat", // Default to flat roof only
     roofColor: "#8B4513", // Added roof color
     roofSlopeDirection: "north", // Default slope direction
+    rooms: [], // <-- ADDED: satisfy ProjectManager's expected shape
   })
 
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null)
@@ -1216,7 +1212,7 @@ export default function AdvancedHouseBuilder() {
 
   const [staircaseWidth, setStaircaseWidth] = useState(1.2)
   const [staircaseStyle, setStaircaseStyle] = useState<"straight" | "L-shaped" | "U-shaped" | "spiral">("straight")
-  const [staircaseColor, setStaircaseColor] = useState("#8B7355")
+  const [staircaseColor, setStaircaseColor] = useState("#000000ff")
 
   // Visualization settings
   const [showRoof, setShowRoof] = useState(true)
@@ -1264,7 +1260,7 @@ export default function AdvancedHouseBuilder() {
       setPricesLoaded(true)
       setCsvError(null)
     } catch (error) {
-      console.error("[v0] Error loading material prices:", error)
+      console.error("Error loading material prices:", error)
       setCsvError("Failed to load prices from CSV. Using default rates.")
       setMaterialRates(DEFAULT_MATERIAL_RATES)
       setPricesLoaded(true)
@@ -1551,7 +1547,7 @@ export default function AdvancedHouseBuilder() {
       height: 1.0,
       style: "rectangular",
       sillHeight: 0.9,
-      color: "#8B4513", // Default brown frame
+      color: "#ffffffff", // Default brown frame
     }
 
     setFloorPlan((prev) => ({
@@ -1576,7 +1572,7 @@ export default function AdvancedHouseBuilder() {
       width: 0.9,
       height: 2.1,
       style: "single",
-      color: "#8B4513", // Default brown door
+      color: "#ffffffff", // Default brown door
     }
 
     setFloorPlan((prev) => ({
@@ -1795,13 +1791,39 @@ export default function AdvancedHouseBuilder() {
           <OrbitControls makeDefault />
           {/* <Grid args={[50, 50]} /> */}
 
-          {/* Ground plane with grass texture */}
-          <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-            <planeGeometry args={[floorPlan.plotBounds.width + 2, floorPlan.plotBounds.depth + 2]} />
-            <meshStandardMaterial color="#22c55e" />
+          {/* Ground plane with grass texture with grass */}
+          <mesh
+            position={[0, -0.01, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            receiveShadow
+          >
+            <planeGeometry
+              args={[
+                floorPlan.plotBounds.width,
+                floorPlan.plotBounds.depth
+              ]}
+            />
+            <meshStandardMaterial color="#8b5a2b" /> {/* dirt brown */}
           </mesh>
 
+
           {/* Grid overlay on ground */}
+          {/* Solid grass plane under the grid */}
+          <mesh
+            position={[0, -0.02, 0]}   // slightly lower so dirt shows on top
+            rotation={[-Math.PI / 2, 0, 0]}
+            receiveShadow
+          >
+            <planeGeometry
+              args={[
+                Math.max(floorPlan.plotBounds.width, floorPlan.plotBounds.depth) + 2,
+                Math.max(floorPlan.plotBounds.width, floorPlan.plotBounds.depth) + 2
+              ]}
+            />
+            <meshStandardMaterial color="#22c55e" /> {/* grass green */}
+          </mesh>
+
+          {/* Grid on top */}
           <gridHelper args={[Math.max(floorPlan.plotBounds.width, floorPlan.plotBounds.depth) + 2, 40]} position={[0, 0, 0]} />
 
           {showEnvironment && <Environment preset="sunset" />}
@@ -2047,7 +2069,7 @@ export default function AdvancedHouseBuilder() {
           <div className="mb-6">
             <h1 className="text-2xl font-bold mb-1 flex items-center gap-3 text-black">
               <Home className="w-6 h-6 text-primary" />
-              House Builder Pro
+              House Builder
             </h1>
 
             <p className="text-xs text-muted-foreground">Design your dream home in 3D</p>
@@ -2916,7 +2938,7 @@ export default function AdvancedHouseBuilder() {
 
               {/* FloorPlanDesigner component - needs to be adapted for multi-floor */}
               <FloorPlanDesigner
-                walls={currentFloorData?.walls || []} // Only show walls for the current floor
+                walls={(currentFloorData?.walls || []) as any} // cast to any to avoid duplicate-type mismatches between files
                 plotBounds={floorPlan.plotBounds}
                 onWallsChange={(newWalls) => handleWallsChange(newWalls, currentFloor)}
                 selectedWallId={selectedWallId}
@@ -2924,7 +2946,7 @@ export default function AdvancedHouseBuilder() {
                 wallHeight={currentFloorData?.height || 3} // Use current floor's height
                 wallThickness={wallThickness}
                 wallMaterial={wallMaterial}
-                referenceWalls={currentFloor > 1 ? floorPlan.floors.find((f) => f.level === 1)?.walls || [] : []} // Pass Floor 1 walls as reference for upper floors
+                referenceWalls={(currentFloor > 1 ? floorPlan.floors.find((f) => f.level === 1)?.walls || [] : []) as any} // cast to any
               />
 
               <Card className="border-muted shadow-sm">
@@ -3039,7 +3061,7 @@ export default function AdvancedHouseBuilder() {
             </TabsContent>
 
             <TabsContent value="project" className="space-y-4 mt-4">
-              <ProjectManager floorPlan={floorPlan} onFloorPlanChange={setFloorPlan} estimate={estimate} />
+              <ProjectManager floorPlan={floorPlan} onFloorPlanChange={(fp) => setFloorPlan(fp)} estimate={estimate} />
             </TabsContent>
           </Tabs>
         </div>

@@ -8,8 +8,7 @@ import "./globals.css"
 
 export const metadata: Metadata = {
   title: "House Builder Pro - Design Your Dream Home",
-  description: "Professional 3D house design tool with multi-floor support, cost estimation, and validation",
-  generator: "v0.app",
+  description: "Professional 3D house design tool with multi-floor support, cost estimation, and validation"
 }
 
 export default function RootLayout({

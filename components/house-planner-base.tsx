@@ -152,7 +152,7 @@ function WindowMesh({
         {/* Window frame */}
         <mesh position={[0, 0, 0.05]}>
           <boxGeometry args={[width + 0.1, height + 0.1, 0.02]} />
-          <meshStandardMaterial color="#8B4513" />
+          <meshStandardMaterial color="#ffffffff" />
         </mesh>
       </group>
     )

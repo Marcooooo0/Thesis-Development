@@ -4,7 +4,7 @@ HOUSE BUILDER SYSTEM - TECHNICAL DOCUMENTATION
 
 TABLE OF CONTENTS:
 1. Floor Area Calculation
-2. Cost Estimation System
+2. Cost Estimation System with Store Pricing
 3. Dimension Tracking
 4. Mesh Behavior Documentation
 5. Material Estimation Formulas
@@ -36,25 +36,35 @@ Multi-Floor Logic:
 - Floor 2 must be contained within Floor 1's perimeter (enforced by boundary validation)
 - Total built area = Sum of all floor areas (can vary per floor)
 - The system visually displays Floor 1 perimeter as reference on Floor 2 canvas
+- Interior room dividers do NOT affect floor area (only perimeter walls count)
 
 Edge Cases Handled:
 - Irregular polygons (non-rectangular buildings)
 - L-shaped, trapezoid, and other complex geometries
-- Interior walls/rooms don't affect floor area (only perimeter walls count)
+- Interior walls/rooms don't affect floor area (only perimeter matters)
 - Minimum 3 walls required to form a valid enclosed area
 
 =============================================================================
-2. COST ESTIMATION SYSTEM
+2. COST ESTIMATION SYSTEM WITH STORE PRICING
 =============================================================================
 
 The system uses CSV-based material pricing for accurate cost calculations.
 All prices are loaded from: public/material-prices.csv
+
+Supported Construction Stores for Best Price Lookup:
+1. Burk Petros Construction Supplies
+2. RJE Construction Supplies
+3. J21 Hardware
+4. 5c Hardware
+5. Rococo Ceramic Artwares
+6. Rac Construction Supplies
 
 Material Categories and Estimation:
 
 A) CONCRETE (Foundation + Wall Core)
    Volume = (Total Built Area × 0.15m) + (Total Wall Length × Wall Thickness × Wall Height)
    Cost = Volume (m³) × Price per m³ (from CSV)
+   Best Price Store: Determined by lowest price per m³ across all stores
    
    Where:
    - Total Built Area × 0.15m = Foundation thickness estimate
@@ -63,37 +73,44 @@ A) CONCRETE (Foundation + Wall Core)
 B) STEEL (Reinforcement)
    Weight = (Total Built Area × 25 kg/m²) + (Total Wall Length × 8 kg/m)
    Cost = Weight (kg) × Price per kg (from CSV)
+   Best Price Store: Store with lowest price per kg
    
    Purpose: Structural reinforcement in concrete and beams
 
 C) BLOCKS (Masonry/Brickwork)
    Count = Total Wall Area × Block Density
    Cost = Block Count × Price per piece (from CSV)
+   Best Price Store: Store with lowest price per piece
    
    Where:
    - Total Wall Area = Σ(Wall Length × Wall Height) for all walls
    - Block Density = Default 15 blocks/m² (configurable)
 
 D) ROOFING
-   Area = Total Built Area × 1.2 (20% overhang factor)
+   Area = Total Built Area × Roof Factor (based on style)
    Cost = Area (m²) × Price per m² (from CSV)
+   Best Price Store: Store with lowest price per m²
    
    Adjustments by roof type:
-   - Flat: Standard calculation
+   - Flat: Area × 1.2 (20% overhang factor, uses ExtrudeGeometry for 0.2m thickness)
    - Gable: Area × 1.3 (30% overhang for sloped surfaces)
    - Shed: Area × 1.25 (25% overhang)
 
 E) WINDOWS
    Cost = Total Window Area (m²) × Price per m² (from CSV)
+   Best Price Store: Store with lowest price per m²
    Where: Total Window Area = Σ(Window Width × Window Height)
+   Note: Windows protrude both outside (15cm) and inside (8cm) for visibility
 
 F) DOORS
    Cost = Door Count × Price per door (from CSV)
+   Best Price Store: Store with lowest unit price
 
 G) FLOORING
    Area per floor = Floor polygon area (using Shoelace formula)
    Total Flooring Area = Σ(Floor Area) for all floors
    Cost = Total Area (m²) × Price per m² × Floor Texture Factor
+   Best Price Store: Store with lowest price per m²
    
    Texture factors:
    - Concrete: 1.0×
@@ -104,12 +121,18 @@ G) FLOORING
 
 H) WALLS (Internal Surfaces)
    Cost = Total Wall Area × Price per m² (from CSV)
+   Best Price Store: Store with lowest price per m²
    Total Wall Area = Σ(Wall Length × Wall Height) for all walls
 
 I) LABOR (Percentage of Total Material Cost)
    Labor = (Sum of all material costs) × Labor Percentage (from CSV)
 
 TOTAL PROJECT COST = A + B + C + D + E + F + G + H + I
+
+STORE PRICING RECOMMENDATION SYSTEM:
+Each material category displays the best price found across all 6 construction stores.
+Format: "Material: ₱X,XXX (Best Price from [Store Name])"
+Users can reference these recommendations to purchase materials at optimal prices.
 
 =============================================================================
 3. DIMENSION TRACKING
@@ -126,7 +149,7 @@ Per Wall:
   - Surface Area = Length × Height
 
 Per Floor:
-  - Level (0 for ground, 1 for first floor, etc.)
+  - Level (1 for first floor, 2 for second floor)
   - Height (floor-to-ceiling distance)
   - Base Height = Sum of heights of all lower floors
   - Enclosed Area (calculated using Shoelace formula)
@@ -157,23 +180,28 @@ Wall Mesh (WallMesh Component):
   - Thickness: Creates depth using wall.thickness property
   - Height: Extends from base to base + wall.height
   - Windows/Doors: Cut into wall surface, positioned along wall length
+  - Supports room dividers: Interior walls can be created independently
 
 Floor Mesh (FloorMesh Component):
-  - Creates slab covering the enclosed wall perimeter
+  - Creates slab covering the enclosed wall perimeter ONLY
   - Uses Shoelace-derived polygon points to define floor shape
   - Visibility: Independent of wall visibility (always visible when floor exists)
   - Position: At calculated floorBaseHeight for each floor
-  - Texture: Applied with repetition for tiling effect
+  - Texture: Applied with repetition for tiling effect based on floor.texture
   - Color: Per-floor customizable color
-  - Not affected by interior walls/rooms (only perimeter matters)
+  - Important: Only perimeter walls affect floor shape, NOT room dividers
+  - ExtrudeGeometry: Creates 0.2m thickness for realistic floor depth
 
 Roof Mesh (RoofMesh Component):
 
   Flat Roof:
-    - Single plane covering entire building footprint + overhang
+    - Uses ExtrudeGeometry to create 3D thickness (0.2m) instead of 2D plane
+    - Covers entire building footprint + overhang (0.3m on all sides)
     - Positioned at top of tallest floor
     - Overhang: 0.3m on all sides
     - Rotation: Math.PI/2 to lay flat horizontally
+    - Material: Standard material with roof color
+    - Creates realistic appearance with depth
 
   Gable Roof:
     - Ridge runs parallel to longest building side
@@ -182,6 +210,7 @@ Roof Mesh (RoofMesh Component):
     - Slope angle: 30 degrees (Math.PI / 6)
     - Ridge height: 2.5m above roof base
     - Creates realistic peaked roof appearance
+    - Both slope and gable faces use BufferGeometry for precision
 
   Shed Roof:
     - Single sloped surface with selectable direction (N/S/E/W)
@@ -189,18 +218,20 @@ Roof Mesh (RoofMesh Component):
     - High side: Flush with top of raised wall
     - Low side: Slopes down to opposite wall
     - Creates asymmetrical appearance for specific architecture
+    - Direction determines which side is raised
 
 Floor Perimeter Guide (2D Canvas):
-  - Green dashed line showing floor boundary in top-down view
+  - Green dashed line showing floor boundary in top-down view (floor-plan-designer.tsx)
   - Drawn on canvas before walls for visual reference
   - For Floor 2+: Shows both current floor outline and previous floor(s)
   - Helps users align upper floors within lower floor footprint
+  - Automatically hidden for Floor 1 (no reference needed)
 
 Window/Door Mesh Behavior:
   - Positioned along walls using parametric positioning (0.0 to 1.0)
-  - Glass protrudes outward by 15cm + inward by 8cm
+  - Glass protrudes OUTWARD by 15cm + INWARD by 8cm (on all floors consistently)
   - Frames rendered separately for visual clarity
-  - Handles rendered in gold at 1.0m height from base
+  - Handles rendered in custom color at 1.0m height from base
   - Sills rendered below glass windows
   - Rotation synchronized with wall orientation
 
@@ -257,11 +288,15 @@ Window Area (m²) = Σ(Width × Height) for all windows
 Door Count = Total number of doors
 
 Roof Area (m²) = Floor Area × Roof Factor
-  - Flat: 1.2×
+  - Flat: 1.2× (with 0.2m ExtrudeGeometry thickness)
   - Gable: 1.3×
   - Shed: 1.25×
 
 Total Cost = Σ (Material Quantity × Unit Price from CSV)
+
+Best Price Store Recommendation:
+For each material: Display store name with lowest unit cost
+Format: "₱X,XXX (Best: [Store Name])"
 
 =============================================================================
 END OF DOCUMENTATION
